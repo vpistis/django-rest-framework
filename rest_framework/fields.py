@@ -1096,11 +1096,11 @@ class DateTimeField(Field):
             return value
 
         if output_format.lower() == ISO_8601:
-            value = value.isoformat()
+            value = self.enforce_timezone(value).isoformat()
             if value.endswith('+00:00'):
                 value = value[:-6] + 'Z'
             return value
-        return value.strftime(output_format)
+        return self.enforce_timezone(value).strftime(output_format)
 
 
 class DateField(Field):

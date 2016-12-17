@@ -317,6 +317,9 @@ If you want to override this behavior, you'll need to declare the `DateTimeField
         class Meta:
             model = Comment
 
+#### timezones
+The default behavior is to use the value of `Django USE_TZ` setting, and when `USE_TZ=True` the output is formatted according to the `Django TIME_ZONE` setting.
+
 ## DateField
 
 A date representation.
