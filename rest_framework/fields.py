@@ -1100,7 +1100,7 @@ class DateTimeField(Field):
         tz = self.default_timezone()
         # timezone.localtime() defaults to the current tz, you only
         # need the `tz` arg if the current tz != default tz
-        value = timezone.localtime(value, timezone=tz)
+        value = timezone.localtime(self.enforce_timezone(value), timezone=tz)
 
         output_format = getattr(self, 'format', api_settings.DATETIME_FORMAT)
 
@@ -1108,11 +1108,11 @@ class DateTimeField(Field):
             return value
 
         if output_format.lower() == ISO_8601:
-            value = self.enforce_timezone(value).isoformat()
+            value = value.isoformat()
             if value.endswith('+00:00'):
                 value = value[:-6] + 'Z'
             return value
-        return self.enforce_timezone(value).strftime(output_format)
+        return value.strftime(output_format)
 
 
 class DateField(Field):
