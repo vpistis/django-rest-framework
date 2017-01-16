@@ -1148,6 +1148,10 @@ class DateTimeField(Field):
         if output_format is None or isinstance(value, six.string_types):
             return value
 
+        if not api_settings.DATETIME_OUTPUT_UTC and self.default_timezone() is not None:
+            value = timezone.localtime(value, timezone=self.default_timezone())
+            # value = self.enforce_timezone(value)
+
         if output_format.lower() == ISO_8601:
             value = value.isoformat()
             if value.endswith('+00:00'):

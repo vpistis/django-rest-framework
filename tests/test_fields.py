@@ -1153,6 +1153,43 @@ class TestDateTimeField(FieldValues):
     field = serializers.DateTimeField(default_timezone=timezone.UTC())
 
 
+class TestDateTimeFieldTimeZone(TestCase):
+    """
+    Valid and invalid values for `DateTimeField`.
+    """
+
+    @override_settings(USE_TZ=True, REST_FRAMEWORK={'DATETIME_OUTPUT_UTC': False, })
+    def test_to_internal_value(self):
+        field = serializers.DateTimeField(default_timezone=timezone.UTC())
+        assert field.to_internal_value(datetime.datetime(2001, 1, 1, 13, 00,
+                                                         tzinfo=timezone.get_current_timezone())) == '2001-01-01T13:00:00+05:50'
+
+    @override_settings(USE_TZ=True, REST_FRAMEWORK={'DATETIME_OUTPUT_UTC': False,
+                                                    'DATETIME_FORMAT': '%Y-%m-%d %H:%M:%S%z', })
+    def test_to_representation(self):
+        field = serializers.DateTimeField(default_timezone=timezone.UTC())
+        assert field.to_representation(datetime.datetime(2001, 1, 1, 13, 00,
+                                                         tzinfo=timezone.get_current_timezone())) == '2001-01-01T13:00:00+05:50'
+
+    # valid_inputs = {
+    #     '2001-01-01 13:00': datetime.datetime(2001, 1, 1, 13, 00, tzinfo=timezone.UTC()),
+    #     '2001-01-01T13:00': datetime.datetime(2001, 1, 1, 13, 00, tzinfo=timezone.UTC()),
+    #     '2001-01-01T13:00Z': datetime.datetime(2001, 1, 1, 13, 00, tzinfo=timezone.UTC()),
+    #     datetime.datetime(2001, 1, 1, 13, 00): datetime.datetime(2001, 1, 1, 13, 00, tzinfo=timezone.UTC()),
+    #     datetime.datetime(2001, 1, 1, 13, 00, tzinfo=timezone.UTC()): datetime.datetime(2001, 1, 1, 13, 00,
+    #                                                                                     tzinfo=timezone.UTC()),
+    #     # Django 1.4 does not support timezone string parsing.
+    #     '2001-01-01T13:00Z': datetime.datetime(2001, 1, 1, 13, 00, tzinfo=timezone.UTC())
+    # }
+    # invalid_inputs = {}
+    # outputs = {
+    #     datetime.datetime(2001, 1, 1, 13, 00, tzinfo=timezone.UTC()): '2001-01-01T13:00:00-05:51',
+    #     datetime.datetime(2001, 1, 1, 13, 00,): '2001-01-01T13:00:00',
+    # }
+    #
+    # field = serializers.DateTimeField()
+
+
 class TestCustomInputFormatDateTimeField(FieldValues):
     """
     Valid and invalid values for `DateTimeField` with a custom input format.

@@ -106,6 +106,8 @@ DEFAULTS = {
     'TIME_FORMAT': ISO_8601,
     'TIME_INPUT_FORMATS': (ISO_8601,),
 
+    'DATETIME_OUTPUT_UTC': True,
+
     # Encoding
     'UNICODE_JSON': True,
     'COMPACT_JSON': True,
