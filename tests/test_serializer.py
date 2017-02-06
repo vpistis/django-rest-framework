@@ -7,6 +7,8 @@ import re
 
 import pytest
 
+from django.db import models
+
 from rest_framework import fields, relations, serializers
 from rest_framework.compat import unicode_repr
 from rest_framework.fields import Field
@@ -156,6 +158,32 @@ class TestBaseSerializer:
                 }
 
         self.Serializer = ExampleSerializer
+
+    def test_abstract_methods_raise_proper_errors(self):
+        serializer = serializers.BaseSerializer()
+        with pytest.raises(NotImplementedError):
+            serializer.to_internal_value(None)
+        with pytest.raises(NotImplementedError):
+            serializer.to_representation(None)
+        with pytest.raises(NotImplementedError):
+            serializer.update(None, None)
+        with pytest.raises(NotImplementedError):
+            serializer.create(None)
+
+    def test_access_to_data_attribute_before_validation_raises_error(self):
+        serializer = serializers.BaseSerializer(data={'foo': 'bar'})
+        with pytest.raises(AssertionError):
+            serializer.data
+
+    def test_access_to_errors_attribute_before_validation_raises_error(self):
+        serializer = serializers.BaseSerializer(data={'foo': 'bar'})
+        with pytest.raises(AssertionError):
+            serializer.errors
+
+    def test_access_to_validated_data_attribute_before_validation_raises_error(self):
+        serializer = serializers.BaseSerializer(data={'foo': 'bar'})
+        with pytest.raises(AssertionError):
+            serializer.validated_data
 
     def test_serialize_instance(self):
         instance = {'id': 1, 'name': 'tom', 'domain': 'example.com'}
@@ -413,3 +441,42 @@ class Test4606Regression:
         serializer = self.Serializer(data=[{"name": "liz"}], many=True)
         with pytest.raises(serializers.ValidationError):
             serializer.is_valid(raise_exception=True)
+
+
+class TestDeclaredFieldInheritance:
+    def test_declared_field_disabling(self):
+        class Parent(serializers.Serializer):
+            f1 = serializers.CharField()
+            f2 = serializers.CharField()
+
+        class Child(Parent):
+            f1 = None
+
+        class Grandchild(Child):
+            pass
+
+        assert len(Parent._declared_fields) == 2
+        assert len(Child._declared_fields) == 1
+        assert len(Grandchild._declared_fields) == 1
+
+    def test_meta_field_disabling(self):
+        # Declaratively setting a field on a child class will *not* prevent
+        # the ModelSerializer from generating a default field.
+        class MyModel(models.Model):
+            f1 = models.CharField(max_length=10)
+            f2 = models.CharField(max_length=10)
+
+        class Parent(serializers.ModelSerializer):
+            class Meta:
+                model = MyModel
+                fields = ['f1', 'f2']
+
+        class Child(Parent):
+            f1 = None
+
+        class Grandchild(Child):
+            pass
+
+        assert len(Parent().get_fields()) == 2
+        assert len(Child().get_fields()) == 2
+        assert len(Grandchild().get_fields()) == 2

@@ -305,7 +305,11 @@ class SerializerMetaclass(type):
         # in order to maintain the correct order of fields.
         for base in reversed(bases):
             if hasattr(base, '_declared_fields'):
-                fields = list(base._declared_fields.items()) + fields
+                fields = [
+                    (field_name, obj) for field_name, obj
+                    in base._declared_fields.items()
+                    if field_name not in attrs
+                ] + fields
 
         return OrderedDict(fields)
 
@@ -1173,7 +1177,7 @@ class ModelSerializer(Serializer):
 
         if postgres_fields and isinstance(model_field, postgres_fields.ArrayField):
             # Populate the `child` argument on `ListField` instances generated
-            # for the PostgrSQL specfic `ArrayField`.
+            # for the PostgreSQL specific `ArrayField`.
             child_model_field = model_field.base_field
             child_field_class, child_field_kwargs = self.build_standard_field(
                 'child', child_model_field
