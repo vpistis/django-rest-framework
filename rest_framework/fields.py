@@ -1146,6 +1146,11 @@ class DateTimeField(Field):
         if not value:
             return None
 
+        tz = self.default_timezone()
+        # timezone.localtime() defaults to the current tz, you only
+        # need the `tz` arg if the current tz != default tz
+        value = timezone.localtime(self.enforce_timezone(value), timezone=tz)
+
         output_format = getattr(self, 'format', api_settings.DATETIME_FORMAT)
 
         if output_format is None or isinstance(value, six.string_types):
