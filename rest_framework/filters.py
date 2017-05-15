@@ -11,6 +11,7 @@ from functools import reduce
 from django.core.exceptions import ImproperlyConfigured
 from django.db import models
 from django.db.models.constants import LOOKUP_SEP
+from django.db.models.sql.constants import ORDER_PATTERN
 from django.template import loader
 from django.utils import six
 from django.utils.encoding import force_text
@@ -50,12 +51,17 @@ if django_filters:
                 DeprecationWarning
             )
             return super(FilterSet, self).__init__(*args, **kwargs)
+
+    DFBase = django_filters.rest_framework.DjangoFilterBackend
+
 else:
     def FilterSet():
         assert False, 'django-filter must be installed to use the `FilterSet` class'
 
+    DFBase = BaseFilterBackend
 
-class DjangoFilterBackend(BaseFilterBackend):
+
+class DjangoFilterBackend(DFBase):
     """
     A filter backend that uses django-filter.
     """
@@ -69,9 +75,7 @@ class DjangoFilterBackend(BaseFilterBackend):
             DeprecationWarning
         )
 
-        from django_filters.rest_framework import DjangoFilterBackend
-
-        return DjangoFilterBackend(*args, **kwargs)
+        return super(DjangoFilterBackend, cls).__new__(cls, *args, **kwargs)
 
 
 class SearchFilter(BaseFilterBackend):
@@ -265,7 +269,7 @@ class OrderingFilter(BaseFilterBackend):
 
     def remove_invalid_fields(self, queryset, fields, view, request):
         valid_fields = [item[0] for item in self.get_valid_fields(queryset, view, {'request': request})]
-        return [term for term in fields if term.lstrip('-') in valid_fields]
+        return [term for term in fields if term.lstrip('-') in valid_fields and ORDER_PATTERN.match(term)]
 
     def filter_queryset(self, request, queryset, view):
         ordering = self.get_ordering(request, queryset, view)
@@ -323,7 +327,7 @@ class DjangoObjectPermissionsFilter(BaseFilterBackend):
 
     def filter_queryset(self, request, queryset, view):
         # We want to defer this import until run-time, rather than import-time.
-        # See https://github.com/tomchristie/django-rest-framework/issues/4608
+        # See https://github.com/encode/django-rest-framework/issues/4608
         # (Also see #1624 for why we need to make this import explicitly)
         from guardian.shortcuts import get_objects_for_user
 

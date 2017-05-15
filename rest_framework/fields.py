@@ -33,7 +33,8 @@ from django.utils.translation import ugettext_lazy as _
 
 from rest_framework import ISO_8601
 from rest_framework.compat import (
-    get_remote_field, unicode_repr, unicode_to_repr, value_from_object
+    InvalidTimeError, get_remote_field, unicode_repr, unicode_to_repr,
+    value_from_object
 )
 from rest_framework.exceptions import ErrorDetail, ValidationError
 from rest_framework.settings import api_settings
@@ -618,8 +619,8 @@ class Field(object):
         originally created with, rather than copying the complete state.
         """
         # Treat regexes and validators as immutable.
-        # See https://github.com/tomchristie/django-rest-framework/issues/1954
-        # and https://github.com/tomchristie/django-rest-framework/pull/4489
+        # See https://github.com/encode/django-rest-framework/issues/1954
+        # and https://github.com/encode/django-rest-framework/pull/4489
         args = [
             copy.deepcopy(item) if not isinstance(item, REGEX_TYPE) else item
             for item in self._args
@@ -649,6 +650,7 @@ class BooleanField(Field):
     initial = False
     TRUE_VALUES = {
         't', 'T',
+        'y', 'Y', 'yes', 'YES',
         'true', 'True', 'TRUE',
         'on', 'On', 'ON',
         '1', 1,
@@ -656,6 +658,7 @@ class BooleanField(Field):
     }
     FALSE_VALUES = {
         'f', 'F',
+        'n', 'N', 'no', 'NO',
         'false', 'False', 'FALSE',
         'off', 'Off', 'OFF',
         '0', 0, 0.0,
@@ -1085,6 +1088,7 @@ class DateTimeField(Field):
     default_error_messages = {
         'invalid': _('Datetime has wrong format. Use one of these formats instead: {format}.'),
         'date': _('Expected a datetime but got a date.'),
+        'make_aware': _('Invalid datetime for the timezone "{timezone}".')
     }
     datetime_parser = datetime.datetime.strptime
 
@@ -1105,7 +1109,10 @@ class DateTimeField(Field):
         field_timezone = getattr(self, 'timezone', self.default_timezone())
 
         if (field_timezone is not None) and not timezone.is_aware(value):
-            return timezone.make_aware(value, field_timezone)
+            try:
+                return timezone.make_aware(value, field_timezone)
+            except InvalidTimeError:
+                self.fail('make_aware', timezone=field_timezone)
         elif (field_timezone is None) and timezone.is_aware(value):
             return timezone.make_naive(value, utc)
         return value
@@ -1146,6 +1153,7 @@ class DateTimeField(Field):
         if not value:
             return None
 
+        # FIXME: a workaround to get the correct timezone
         tz = self.default_timezone()
         # timezone.localtime() defaults to the current tz, you only
         # need the `tz` arg if the current tz != default tz
@@ -1244,11 +1252,28 @@ class TimeField(Field):
             self.input_formats = input_formats
         super(TimeField, self).__init__(*args, **kwargs)
 
+    def enforce_timezone(self, value):
+        """
+        When `self.default_timezone` is `None`, always return naive datetimes.
+        When `self.default_timezone` is not `None`, always return aware datetimes.
+        """
+        field_timezone = getattr(self, 'timezone', self.default_timezone())
+
+        if (field_timezone is not None) and not timezone.is_aware(value):
+            return timezone.make_aware(value, field_timezone)
+        elif (field_timezone is None) and timezone.is_aware(value):
+            return timezone.make_naive(value, utc)
+        return value
+
+    def default_timezone(self):
+        return timezone.get_default_timezone() if settings.USE_TZ else None
+
     def to_internal_value(self, value):
+        # This use a workaround to use the correct timezone
         input_formats = getattr(self, 'input_formats', api_settings.TIME_INPUT_FORMATS)
 
         if isinstance(value, datetime.time):
-            return value
+            return self.enforce_timezone(value)
 
         for input_format in input_formats:
             if input_format.lower() == ISO_8601:
@@ -1258,14 +1283,14 @@ class TimeField(Field):
                     pass
                 else:
                     if parsed is not None:
-                        return parsed
+                        return self.enforce_timezone(parsed)
             else:
                 try:
                     parsed = self.datetime_parser(value, input_format)
                 except (ValueError, TypeError):
                     pass
                 else:
-                    return parsed.time()
+                    return self.enforce_timezone(parsed).time()
 
         humanized_format = humanize_datetime.time_formats(input_formats)
         self.fail('invalid', format=humanized_format)
@@ -1273,6 +1298,12 @@ class TimeField(Field):
     def to_representation(self, value):
         if value in (None, ''):
             return None
+
+        # FIXME: a workaround to get the correct timezone
+        tz = self.default_timezone()
+        # timezone.localtime() defaults to the current tz, you only
+        # need the `tz` arg if the current tz != default tz
+        value = timezone.localtime(self.enforce_timezone(value), timezone=tz)
 
         output_format = getattr(self, 'format', api_settings.TIME_FORMAT)
 
