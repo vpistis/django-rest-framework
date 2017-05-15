@@ -1153,6 +1153,7 @@ class DateTimeField(Field):
         if not value:
             return None
 
+        # FIXME: a workaround to get the correct timezone
         tz = self.default_timezone()
         # timezone.localtime() defaults to the current tz, you only
         # need the `tz` arg if the current tz != default tz
